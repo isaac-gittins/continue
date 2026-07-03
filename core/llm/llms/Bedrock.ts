@@ -26,6 +26,19 @@ import { BaseLLM } from "../index.js";
 import { PROVIDER_TOOL_SUPPORT } from "../toolSupport.js";
 import { getSecureID } from "../utils/getSecureID.js";
 
+interface BedrockCompletionOptions {
+  reasoningEffort:
+    | "none"
+    | "minimal"
+    | "low"
+    | "medium"
+    | "high"
+    | "xhigh"
+    | "max"
+    | undefined;
+  serviceTier: "default" | "flex" | "priority" | "reserved";
+}
+
 interface ModelConfig {
   formatPayload: (text: string) => any;
   extractEmbeddings: (responseBody: any) => number[][];
@@ -58,6 +71,8 @@ class Bedrock extends BaseLLM {
     headers?: Record<string, string>;
   };
 
+  private _bedrockCompletionOptions: BedrockCompletionOptions;
+
   constructor(options: LLMOptions) {
     super(options);
     if (!options.apiBase) {
@@ -67,6 +82,14 @@ class Bedrock extends BaseLLM {
     this.requestOptions = {
       region: options.region,
       headers: {},
+    };
+
+    this._bedrockCompletionOptions = {
+      reasoningEffort:
+        options.requestOptions?.extraBodyProperties?.reasoningEffort ??
+        undefined,
+      serviceTier:
+        options.requestOptions?.extraBodyProperties?.serviceTier ?? "default",
     };
   }
 
@@ -351,13 +374,16 @@ class Bedrock extends BaseLLM {
         anthropic_beta: options.model.includes("claude")
           ? ["fine-grained-tool-streaming-2025-05-14"]
           : undefined,
+        reasoning_effort: this._bedrockCompletionOptions.reasoningEffort,
+      },
+      serviceTier: {
+        type: this._bedrockCompletionOptions.serviceTier,
       },
     };
   }
 
   /*
     Converts the messages to the format expected by the Bedrock API.
-    
     */
   private _convertMessages(
     messages: ChatMessage[],
